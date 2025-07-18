@@ -555,6 +555,21 @@
 
         // Inicializar la app
         function initApp() {
+            // Verificar si hay configuración en la URL (para PWA)
+            const urlParams = new URLSearchParams(window.location.search);
+            const configParam = urlParams.get('config');
+            
+            if (configParam) {
+                try {
+                    firebaseConfig = JSON.parse(atob(configParam));
+                    localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+                    initFirebase();
+                    return;
+                } catch (e) {
+                    console.log('Error al leer configuración de URL:', e);
+                }
+            }
+            
             // Verificar si ya hay configuración guardada
             const savedConfig = localStorage.getItem('firebaseConfig');
             if (savedConfig) {
@@ -583,6 +598,12 @@
             
             firebaseConfig = config;
             localStorage.setItem('firebaseConfig', JSON.stringify(config));
+            
+            // Guardar también en la URL para que persista al añadir a pantalla de inicio
+            const configParam = btoa(JSON.stringify(config));
+            const newUrl = window.location.href.split('?')[0] + '?config=' + configParam;
+            window.history.replaceState({}, '', newUrl);
+            
             initFirebase();
         }
 
@@ -689,7 +710,13 @@
         }
 
         function shareRoom() {
-            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            let url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            
+            // Incluir configuración en la URL para que funcione al añadir a pantalla de inicio
+            if (firebaseConfig) {
+                const configParam = btoa(JSON.stringify(firebaseConfig));
+                url += `&config=${configParam}`;
+            }
             
             if (navigator.share) {
                 navigator.share({
