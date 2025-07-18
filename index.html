@@ -2,10 +2,17 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Compras</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Lista Compra">
-    <title>🛒 Lista de Compra</title>
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Lista Compras">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%234F46E5'/%3E%3Ctext x='50' y='58' font-family='Arial' font-size='40' text-anchor='middle' fill='white'%3E🛒%3C/text%3E%3C/svg%3E">
+    
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -17,395 +24,892 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px 10px;
+            padding: 20px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
         }
         
         .container {
             max-width: 400px;
             margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .setup-screen {
+            padding: 30px;
+            text-align: center;
+            display: none;
+        }
+        
+        .setup-screen.active {
+            display: block;
+        }
+        
+        .setup-screen h2 {
+            color: #4F46E5;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .setup-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #E2E8F0;
+            border-radius: 12px;
+            font-size: 16px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .setup-btn {
+            width: 100%;
+            padding: 15px;
+            background: #4F46E5;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        
+        .setup-btn:hover {
+            background: #4338CA;
+        }
+        
+        .setup-btn.secondary {
+            background: #6B7280;
+        }
+        
+        .config-section {
+            background: #FEF3C7;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .room-code {
+            background: #EFF6FF;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .room-code-text {
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: bold;
+            color: #1D4ED8;
+            margin: 10px 0;
+            letter-spacing: 1px;
         }
         
         .header {
-            text-align: center;
+            background: linear-gradient(135deg, #4F46E5, #7C3AED);
             color: white;
-            margin-bottom: 30px;
+            padding: 30px 20px;
+            text-align: center;
+            position: relative;
         }
         
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
         
-        .add-section {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
         }
         
-        .input-group {
-            display: flex;
-            gap: 10px;
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #22C55E;
         }
         
-        #newItem {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            font-size: 16px;
-            outline: none;
-        }
-        
-        #newItem:focus {
-            border-color: #667eea;
-        }
-        
-        .btn-add {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 15px 20px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            min-width: 60px;
-        }
-        
-        .btn-add:active {
-            transform: scale(0.95);
+        .connection-status.disconnected {
+            background: #EF4444;
         }
         
         .stats {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #F8FAFC;
+            border-bottom: 1px solid #E2E8F0;
         }
         
-        .shopping-list {
-            background: white;
-            border-radius: 15px;
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4F46E5;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #64748B;
+            margin-top: 4px;
+        }
+        
+        .add-section {
             padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            min-height: 200px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        
+        .add-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .add-input {
+            flex: 1;
+            padding: 14px 16px;
+            border: 2px solid #E2E8F0;
+            border-radius: 12px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.2s;
+        }
+        
+        .add-input:focus {
+            border-color: #4F46E5;
+            background: #F8FAFC;
+        }
+        
+        .add-btn {
+            padding: 14px 20px;
+            background: #4F46E5;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 60px;
+        }
+        
+        .add-btn:hover {
+            background: #4338CA;
+            transform: translateY(-1px);
+        }
+        
+        .add-btn:active {
+            transform: translateY(0);
+        }
+        
+        .add-btn:disabled {
+            background: #9CA3AF;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .quick-adds {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-add {
+            padding: 8px 12px;
+            background: #E0E7FF;
+            color: #4F46E5;
+            border: none;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-add:hover {
+            background: #C7D2FE;
+            transform: translateY(-1px);
+        }
+        
+        .list-section {
+            max-height: 400px;
+            overflow-y: auto;
         }
         
         .list-item {
             display: flex;
             align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #f0f0f0;
-            gap: 15px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #F1F5F9;
+            background: white;
+            transition: all 0.2s;
+            position: relative;
         }
         
-        .list-item:last-child {
-            border-bottom: none;
+        .list-item:hover {
+            background: #F8FAFC;
         }
         
         .list-item.completed {
-            opacity: 0.6;
+            background: #F0FDF4;
+            opacity: 0.7;
         }
         
         .list-item.completed .item-text {
             text-decoration: line-through;
-            color: #888;
+            color: #6B7280;
         }
         
-        .checkbox {
-            width: 25px;
-            height: 25px;
-            border: 2px solid #ddd;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+        .list-item.new-item {
+            animation: slideIn 0.3s ease-out;
         }
         
-        .checkbox.checked {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-color: #667eea;
-            color: white;
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .item-checkbox {
+            width: 20px;
+            height: 20px;
+            margin-right: 15px;
+            accent-color: #22C55E;
         }
         
         .item-text {
             flex: 1;
             font-size: 16px;
-            word-break: break-word;
+            color: #1F2937;
         }
         
-        .btn-delete {
-            background: #ff4757;
-            color: white;
+        .item-quantity {
+            background: #E0E7FF;
+            color: #4F46E5;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        
+        .delete-btn {
+            background: #FEE2E2;
+            color: #DC2626;
             border: none;
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
+            border-radius: 8px;
+            padding: 8px;
             cursor: pointer;
-            font-size: 16px;
-            flex-shrink: 0;
+            transition: all 0.2s;
+            font-size: 14px;
         }
         
-        .btn-delete:active {
-            transform: scale(0.9);
+        .delete-btn:hover {
+            background: #FECACA;
+            transform: scale(1.1);
         }
         
         .empty-state {
             text-align: center;
-            color: #888;
             padding: 40px 20px;
+            color: #6B7280;
         }
         
-        .empty-state .emoji {
-            font-size: 3em;
-            margin-bottom: 10px;
-            display: block;
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
         }
         
         .clear-completed {
-            background: #ff6b7a;
+            margin: 20px;
+            padding: 12px;
+            background: #FEF3C7;
+            color: #D97706;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            width: calc(100% - 40px);
+            transition: all 0.2s;
+        }
+        
+        .clear-completed:hover {
+            background: #FDE68A;
+        }
+        
+        .sync-info {
+            background: #EFF6FF;
+            color: #1D4ED8;
+            padding: 15px 20px;
+            font-size: 12px;
+            text-align: center;
+            border-top: 1px solid #E2E8F0;
+        }
+        
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .quantity-btn {
+            background: #4F46E5;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            margin-top: 15px;
+            border-radius: 6px;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
             cursor: pointer;
-            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .quantity-input {
+            width: 50px;
+            padding: 6px;
+            text-align: center;
+            border: 1px solid #E2E8F0;
+            border-radius: 6px;
             font-size: 14px;
         }
         
-        .clear-completed:active {
-            transform: scale(0.98);
+        .share-section {
+            background: #F0FDF4;
+            padding: 15px 20px;
+            border-top: 1px solid #E2E8F0;
         }
         
-        /* Animaciones */
-        .list-item {
-            animation: slideIn 0.3s ease;
+        .share-btn {
+            width: 100%;
+            padding: 12px;
+            background: #22C55E;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
         }
         
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        
-        /* Responsive */
-        @media (max-width: 320px) {
-            .container {
-                margin: 0 5px;
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+                padding-top: max(10px, env(safe-area-inset-top));
             }
             
-            .header h1 {
-                font-size: 2em;
+            .container {
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 25px 15px;
+            }
+            
+            .add-section {
+                padding: 15px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>🛒</h1>
-            <h2>Lista de Compra</h2>
-        </div>
-        
-        <!-- Add Item Section -->
-        <div class="add-section">
-            <div class="input-group">
-                <input type="text" id="newItem" placeholder="¿Qué necesitas comprar?" maxlength="50">
-                <button class="btn-add" onclick="addItem()">+</button>
-            </div>
-        </div>
-        
-        <!-- Stats -->
-        <div class="stats">
-            <div id="itemCount">0 elementos en tu lista</div>
-        </div>
-        
-        <!-- Shopping List -->
-        <div class="shopping-list">
-            <div id="itemsList">
-                <!-- Los elementos aparecerán aquí -->
+        <!-- Pantalla de configuración -->
+        <div class="setup-screen" id="setupScreen">
+            <h2>🔧 Configuración Firebase</h2>
+            <p style="color: #6B7280; margin-bottom: 20px;">Introduce tu configuración de Firebase para sincronización en tiempo real</p>
+            
+            <div class="config-section">
+                <strong>📋 Instrucciones rápidas:</strong><br>
+                1. Ve a <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br>
+                2. Crea un proyecto nuevo<br>
+                3. Realtime Database → Crear base de datos<br>
+                4. Reglas: modo prueba<br>
+                5. Configuración del proyecto → General → Tu app web
             </div>
             
-            <div id="emptyState" class="empty-state">
-                <span class="emoji">📝</span>
-                <p>Tu lista está vacía</p>
-                <small>Añade elementos para empezar</small>
+            <input type="text" class="setup-input" id="apiKey" placeholder="API Key (AIza...)">
+            <input type="text" class="setup-input" id="authDomain" placeholder="Auth Domain (tuproyecto.firebaseapp.com)">
+            <input type="text" class="setup-input" id="databaseURL" placeholder="Database URL (https://tuproyecto-default-rtdb.europe-west1.firebasedatabase.app)">
+            <input type="text" class="setup-input" id="projectId" placeholder="Project ID (tuproyecto)">
+            
+            <button class="setup-btn" onclick="saveConfig()">💾 Guardar y Conectar</button>
+            <button class="setup-btn secondary" onclick="useDemo()">🎯 Usar Demo (sin sincronización)</button>
+            
+            <div style="margin-top: 20px; font-size: 12px; color: #6B7280;">
+                La configuración se guarda en tu navegador. Solo necesitas hacerlo una vez.
+            </div>
+        </div>
+        
+        <!-- Pantalla de código de sala -->
+        <div class="setup-screen" id="roomScreen">
+            <h2>🏠 Código de Sala</h2>
+            
+            <div class="room-code">
+                <div>Tu código de sala:</div>
+                <div class="room-code-text" id="roomCodeDisplay"></div>
+                <div style="font-size: 12px; color: #6B7280;">Comparte este código con tu pareja</div>
             </div>
             
-            <button id="clearCompleted" class="clear-completed" onclick="clearCompleted()" style="display: none;">
+            <button class="setup-btn" onclick="shareRoom()">📱 Compartir Código</button>
+            <button class="setup-btn secondary" onclick="joinRoom()">🚪 Unirse a Sala</button>
+            <button class="setup-btn secondary" onclick="startApp()">✅ Continuar</button>
+        </div>
+        
+        <!-- Aplicación principal -->
+        <div id="mainApp" style="display: none;">
+            <div class="header">
+                <div class="connection-status" id="connectionStatus"></div>
+                <h1>🛒 Lista de Compras</h1>
+                <p>Sincronizada en tiempo real</p>
+            </div>
+            
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number" id="totalItems">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="pendingItems">0</div>
+                    <div class="stat-label">Pendientes</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="completedItems">0</div>
+                    <div class="stat-label">Completados</div>
+                </div>
+            </div>
+            
+            <div class="add-section">
+                <div class="add-form">
+                    <input type="text" class="add-input" id="itemInput" placeholder="Añadir producto..." maxlength="50">
+                    <button class="add-btn" id="addButton" onclick="addItem()">+</button>
+                </div>
+                
+                <div class="quantity-controls">
+                    <label style="font-size: 14px; color: #6B7280;">Cantidad:</label>
+                    <button class="quantity-btn" onclick="changeQuantity(-1)">-</button>
+                    <input type="number" class="quantity-input" id="quantityInput" value="1" min="1" max="99">
+                    <button class="quantity-btn" onclick="changeQuantity(1)">+</button>
+                </div>
+                
+                <div class="quick-adds" style="margin-top: 15px;">
+                    <button class="quick-add" onclick="addQuickItem('Pan')">Pan</button>
+                    <button class="quick-add" onclick="addQuickItem('Leche')">Leche</button>
+                    <button class="quick-add" onclick="addQuickItem('Huevos')">Huevos</button>
+                    <button class="quick-add" onclick="addQuickItem('Fruta')">Fruta</button>
+                    <button class="quick-add" onclick="addQuickItem('Verdura')">Verdura</button>
+                </div>
+            </div>
+            
+            <div class="list-section" id="listSection">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📝</div>
+                    <div>Tu lista está vacía</div>
+                    <div style="font-size: 12px; margin-top: 8px;">Añade productos para empezar</div>
+                </div>
+            </div>
+            
+            <button class="clear-completed" id="clearCompleted" onclick="clearCompleted()" style="display: none;">
                 🗑️ Limpiar completados
             </button>
+            
+            <div class="share-section">
+                <div style="font-size: 12px; color: #22C55E; font-weight: 600;">
+                    🟢 Conectado - Sala: <span id="currentRoom"></span>
+                </div>
+                <button class="share-btn" onclick="shareRoom()">📱 Compartir con tu pareja</button>
+            </div>
         </div>
     </div>
 
     <script>
         // Variables globales
-        let shoppingList = [];
-        let itemIdCounter = 1;
+        let database = null;
+        let roomCode = null;
+        let shoppingListRef = null;
+        let isConnected = false;
+        let nextId = 1;
+        
+        // Configuración de Firebase
+        let firebaseConfig = null;
 
-        // Cargar datos al iniciar
-        function loadData() {
-            try {
-                const saved = localStorage.getItem('shoppingList');
-                if (saved) {
-                    shoppingList = JSON.parse(saved);
-                    // Restaurar contador
-                    if (shoppingList.length > 0) {
-                        itemIdCounter = Math.max(...shoppingList.map(item => item.id)) + 1;
-                    }
-                }
-            } catch (e) {
-                console.log('Error cargando datos');
-                shoppingList = [];
-            }
-            updateDisplay();
-        }
-
-        // Guardar datos
-        function saveData() {
-            try {
-                localStorage.setItem('shoppingList', JSON.stringify(shoppingList));
-            } catch (e) {
-                console.log('Error guardando datos');
+        // Inicializar la app
+        function initApp() {
+            // Verificar si ya hay configuración guardada
+            const savedConfig = localStorage.getItem('firebaseConfig');
+            if (savedConfig) {
+                firebaseConfig = JSON.parse(savedConfig);
+                initFirebase();
+            } else {
+                document.getElementById('setupScreen').classList.add('active');
             }
         }
 
-        // Añadir elemento
-        function addItem() {
-            const input = document.getElementById('newItem');
-            const text = input.value.trim();
-            
-            if (!text) {
-                input.focus();
-                return;
-            }
-            
-            const newItem = {
-                id: itemIdCounter++,
-                text: text,
-                completed: false,
-                timestamp: Date.now()
+        function saveConfig() {
+            const config = {
+                apiKey: document.getElementById('apiKey').value.trim(),
+                authDomain: document.getElementById('authDomain').value.trim(),
+                databaseURL: document.getElementById('databaseURL').value.trim(),
+                projectId: document.getElementById('projectId').value.trim(),
+                storageBucket: document.getElementById('projectId').value.trim() + ".appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abc123def456"
             };
             
-            shoppingList.unshift(newItem); // Añadir al principio
-            input.value = '';
-            input.focus();
-            
-            saveData();
-            updateDisplay();
-        }
-
-        // Marcar como completado
-        function toggleItem(id) {
-            const item = shoppingList.find(item => item.id === id);
-            if (item) {
-                item.completed = !item.completed;
-                saveData();
-                updateDisplay();
-            }
-        }
-
-        // Eliminar elemento
-        function deleteItem(id) {
-            shoppingList = shoppingList.filter(item => item.id !== id);
-            saveData();
-            updateDisplay();
-        }
-
-        // Limpiar completados
-        function clearCompleted() {
-            const completedCount = shoppingList.filter(item => item.completed).length;
-            if (completedCount > 0 && confirm(`¿Eliminar ${completedCount} elemento(s) completado(s)?`)) {
-                shoppingList = shoppingList.filter(item => !item.completed);
-                saveData();
-                updateDisplay();
-            }
-        }
-
-        // Actualizar pantalla
-        function updateDisplay() {
-            const listContainer = document.getElementById('itemsList');
-            const emptyState = document.getElementById('emptyState');
-            const itemCount = document.getElementById('itemCount');
-            const clearButton = document.getElementById('clearCompleted');
-            
-            // Estadísticas
-            const total = shoppingList.length;
-            const completed = shoppingList.filter(item => item.completed).length;
-            const pending = total - completed;
-            
-            if (total === 0) {
-                itemCount.textContent = '0 elementos en tu lista';
-            } else if (pending === 0) {
-                itemCount.textContent = `¡Completaste toda tu lista! 🎉`;
-            } else {
-                itemCount.textContent = `${pending} pendiente${pending !== 1 ? 's' : ''} de ${total}`;
-            }
-            
-            // Mostrar/ocultar botón limpiar
-            clearButton.style.display = completed > 0 ? 'block' : 'none';
-            
-            // Lista vacía
-            if (total === 0) {
-                listContainer.innerHTML = '';
-                emptyState.style.display = 'block';
+            if (!config.apiKey || !config.databaseURL || !config.projectId) {
+                alert('Por favor, completa todos los campos obligatorios');
                 return;
             }
             
-            emptyState.style.display = 'none';
-            
-            // Renderizar elementos
-            listContainer.innerHTML = shoppingList.map(item => `
-                <div class="list-item ${item.completed ? 'completed' : ''}">
-                    <div class="checkbox ${item.completed ? 'checked' : ''}" onclick="toggleItem(${item.id})">
-                        ${item.completed ? '✓' : ''}
-                    </div>
-                    <div class="item-text">${escapeHtml(item.text)}</div>
-                    <button class="btn-delete" onclick="deleteItem(${item.id})">×</button>
-                </div>
-            `).join('');
+            firebaseConfig = config;
+            localStorage.setItem('firebaseConfig', JSON.stringify(config));
+            initFirebase();
         }
 
-        // Escapar HTML para seguridad
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        function useDemo() {
+            alert('Modo demo activado. Los datos no se sincronizarán entre dispositivos.');
+            document.getElementById('setupScreen').classList.remove('active');
+            document.getElementById('mainApp').style.display = 'block';
+            
+            // Simular conexión
+            document.getElementById('connectionStatus').classList.add('disconnected');
+            document.querySelector('.share-section').style.display = 'none';
+            
+            renderList();
         }
 
-        // Event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            loadData();
+        function initFirebase() {
+            try {
+                // Inicializar Firebase
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                
+                // Verificar conexión
+                const connectedRef = database.ref('.info/connected');
+                connectedRef.on('value', (snapshot) => {
+                    isConnected = snapshot.val();
+                    updateConnectionStatus();
+                });
+                
+                setupRoom();
+            } catch (error) {
+                console.error('Error al inicializar Firebase:', error);
+                alert('Error en la configuración de Firebase. Verifica los datos e inténtalo de nuevo.');
+            }
+        }
+
+        function setupRoom() {
+            document.getElementById('setupScreen').classList.remove('active');
             
-            // Añadir con Enter
-            document.getElementById('newItem').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addItem();
+            // Verificar si ya hay un código de sala en la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlRoom = urlParams.get('room');
+            
+            if (urlRoom) {
+                roomCode = urlRoom;
+                connectToRoom();
+            } else {
+                // Verificar si hay un código guardado
+                const savedRoom = localStorage.getItem('roomCode');
+                if (savedRoom) {
+                    roomCode = savedRoom;
+                    connectToRoom();
+                } else {
+                    // Generar nuevo código de sala
+                    roomCode = generateRoomCode();
+                    localStorage.setItem('roomCode', roomCode);
+                    document.getElementById('roomCodeDisplay').textContent = roomCode;
+                    document.getElementById('roomScreen').classList.add('active');
+                }
+            }
+        }
+
+        function generateRoomCode() {
+            const words = ['casa', 'familia', 'compras', 'lista', 'juntos'];
+            const numbers = Math.floor(Math.random() * 9999) + 1000;
+            const word = words[Math.floor(Math.random() * words.length)];
+            return `${word}-${numbers}`;
+        }
+
+        function joinRoom() {
+            const code = prompt('Introduce el código de sala que te compartió tu pareja:');
+            if (code && code.trim()) {
+                roomCode = code.trim().toLowerCase();
+                localStorage.setItem('roomCode', roomCode);
+                connectToRoom();
+            }
+        }
+
+        function connectToRoom() {
+            if (!database || !roomCode) return;
+            
+            // Conectar a la sala
+            shoppingListRef = database.ref(`rooms/${roomCode}/items`);
+            
+            // Escuchar cambios en tiempo real
+            shoppingListRef.on('value', (snapshot) => {
+                const data = snapshot.val() || {};
+                const items = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
+                updateList(items);
+            });
+            
+            // Mostrar la aplicación principal
+            document.getElementById('roomScreen').classList.remove('active');
+            document.getElementById('mainApp').style.display = 'block';
+            document.getElementById('currentRoom').textContent = roomCode;
+            
+            // Auto-focus en el input
+            setTimeout(() => {
+                document.getElementById('itemInput').focus();
+            }, 100);
+        }
+
+        function startApp() {
+            connectToRoom();
+        }
+
+        function shareRoom() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Lista de Compras Compartida',
+                    text: `Únete a nuestra lista de compras con el código: ${roomCode}`,
+                    url: url
+                });
+            } else {
+                // Fallback para navegadores que no soportan Web Share API
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert(`Enlace copiado al portapapeles:\n${url}\n\nCompártelo con tu pareja para que se una a la lista.`);
+                    });
+                } else {
+                    prompt('Copia este enlace y compártelo:', url);
+                }
+            }
+        }
+
+        function updateConnectionStatus() {
+            const status = document.getElementById('connectionStatus');
+            if (isConnected) {
+                status.classList.remove('disconnected');
+            } else {
+                status.classList.add('disconnected');
+            }
+        }
+
+        function addItem() {
+            const input = document.getElementById('itemInput');
+            const quantityInput = document.getElementById('quantityInput');
+            const name = input.value.trim();
+            const quantity = parseInt(quantityInput.value) || 1;
+            
+            if (!name || !shoppingListRef) return;
+            
+            // Deshabilitar botón temporalmente
+            const addButton = document.getElementById('addButton');
+            addButton.disabled = true;
+            addButton.textContent = '...';
+            
+            const newItem = {
+                id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: name,
+                quantity: quantity,
+                completed: false,
+                timestamp: Date.now(),
+                addedBy: 'user'
+            };
+            
+            // Enviar a Firebase
+            shoppingListRef.child(newItem.id).set(newItem).then(() => {
+                input.value = '';
+                quantityInput.value = 1;
+                
+                // Rehabilitar botón
+                addButton.disabled = false;
+                addButton.textContent = '+';
+                
+                // Vibración táctil
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+            }).catch((error) => {
+                console.error('Error al añadir item:', error);
+                addButton.disabled = false;
+                addButton.textContent = '+';
+            });
+        }
+
+        function addQuickItem(name) {
+            if (!shoppingListRef) return;
+            
+            const newItem = {
+                id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: name,
+                quantity: 1,
+                completed: false,
+                timestamp: Date.now(),
+                addedBy: 'user'
+            };
+            
+            shoppingListRef.child(newItem.id).set(newItem);
+            
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        function toggleItem(id) {
+            if (!shoppingListRef) return;
+            
+            shoppingListRef.child(id).once('value', (snapshot) => {
+                const item = snapshot.val();
+                if (item) {
+                    shoppingListRef.child(id).update({
+                        completed: !item.completed,
+                        completedAt: !item.completed ? Date.now() : null
+                    });
                 }
             });
             
-            // Focus automático en el input
-            document.getElementById('newItem').focus();
+            if (navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+        }
+
+        function deleteItem(id) {
+            if (!shoppingListRef) return;
+            
+            if (confirm('¿Eliminar este producto?')) {
+                shoppingListRef.child(id).remove();
+                
+                if (navigator.vibrate) {
+                    navigator.vibrate([50, 50, 50]);
+                }
+            }
+        }
+
+        function clearCompleted() {
+            if (!shoppingListRef) return;
+            
+            if (confirm('¿Eliminar todos los productos completados?')) {
+                shoppingListRef.once('value', (snapshot) => {
+                    const items = snapshot.val() || {};
+                    const updates = {};
+                    
+                    Object.keys(items).forEach(id => {
+                        if (items[id].completed) {
+                            updates[id] = null;
+                        }
+                    });
+                    
+                    shoppingListRef.update(updates);
+                });
+            }
+        }
+
+        function updateList(items) {
+            const listSection = document.getElementById('listSection');
+            const emptyState = document.getElementById('emptyState');
+            const clearButton = document.getElementById('clearCompleted');
+            
+            if (items.length === 0) {
+                listSection.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><div>Tu lista está vacía</div><div style="font-size: 12px; margin-top: 8px;">Añade productos para empezar</div></div>';
+                clearButton.style.display = 'none';
+            } else {
+                listSection.innerHTML = '';
+                
+                items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = `list-item ${item.completed ? 'completed' : ''}`;
+                    
+                    itemDiv.innerHTML = `
+                        <input type="checkbox" class="item-checkbox" ${item.completed ? 'checked' : ''} 
+                               onchange="toggleItem('${item.id}')">
+                        <span class="item-text">${item.name}</span>
+                        ${item.quantity > 1 ? `<span class="item-quantity">${item.quantity}</span>` : ''}
+                        <button class="delete-btn" onclick="deleteItem('${item.id}')">🗑️</button>
+                    `;
+                    
+                    listSection.appendChild(itemDiv);
+                });
+                
+                const hasCompleted = items.some(item => item.completed);
+                clearButton.style.display = hasCompleted ? 'block' : 'none';
+            }
+            
+            updateStats(items);
+        }
+
+        function updateStats(items) {
+            const total = items.length;
+            const completed = items.filter(item => item.completed).length;
+            const pending = total - completed;
+            
+            document.getElementById('totalItems').textContent = total;
+            document.getElementById('pendingItems').textContent = pending;
+            document.getElementById('completedItems').textContent = completed;
+        }
+
+        function changeQuantity(delta) {
+            const quantityInput = document.getElementById('quantityInput');
+            let newValue = parseInt(quantityInput.value) + delta;
+            newValue = Math.max(1, Math.min(99, newValue));
+            quantityInput.value = newValue;
+        }
+
+        function renderList() {
+            // Para modo demo sin Firebase
+            updateList([]);
+        }
+
+        // Eventos del teclado
+        document.addEventListener('DOMContentLoaded', function() {
+            const itemInput = document.getElementById('itemInput');
+            const quantityInput = document.getElementById('quantityInput');
+            
+            if (itemInput) {
+                itemInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addItem();
+                    }
+                });
+            }
+            
+            if (quantityInput) {
+                quantityInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addItem();
+                    }
+                });
+            }
         });
 
+        // Inicializar la aplicación
+        initApp();
+        
         // Prevenir zoom en iOS
-        document.addEventListener('gesturestart', function(e) {
-            e.preventDefault();
-        });
+        document.addEventListener('touchstart', function() {}, {passive: true});
     </script>
 </body>
 </html>
